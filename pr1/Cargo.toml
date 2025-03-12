@@ -1,0 +1,7 @@
+[package]
+name = "pr1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+docopt = "1.1.1"

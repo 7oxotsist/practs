@@ -5,19 +5,18 @@ use rocket::fs::TempFile;
 use rocket::http::Status;
 use std::path::Path;
 use uuid::Uuid;
-
+use std::fs;
 #[derive(FromForm)]
 struct Upload<'f> {
     upload: TempFile<'f>,
 }
 
-#[catch(406)]
-fn file_type_error() -> String {
-    format!("file type error")
-}
+// async fn filestats() -> &str {
+    
+// }
 
 #[post("/upload", data = "<file>")]
-async fn upload(mut file: Form<Upload<'_>>) -> Status {
+async fn upload(mut file: Form<Upload<'_>>) -> (Status, &str) {
     if file.upload.content_type().unwrap().is_text() {
         let upload_dir = Path::new("./downloaded");
         println!("file = {:?}", file.upload);
@@ -33,9 +32,9 @@ async fn upload(mut file: Form<Upload<'_>>) -> Status {
 
         let _ = file.upload.move_copy_to(&file_dist).await;
 
-        Status::Ok
+        (Status::Ok, "СЮДА ВЫВОДИТЬ")
     } else {
-        Status::NotAcceptable
+        (Status::NotAcceptable, "Неверный тип файла")
     }
 }
 
@@ -43,5 +42,4 @@ async fn upload(mut file: Form<Upload<'_>>) -> Status {
 fn rocket() -> _ {
     rocket::build()
         .mount("/", routes![upload])
-        .register("/", catchers![file_type_error])
 }

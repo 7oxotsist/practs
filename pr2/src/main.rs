@@ -1,76 +1,67 @@
-#[macro_use]
-extern crate rocket;
-use rocket::form::Form;
-use rocket::fs::TempFile;
-use rocket::http::Status;
-use rocket::tokio::io::AsyncReadExt;
-use std::path::Path;
-use uuid::Uuid;
+use std::{ffi::OsString, fs::File, io::Read, ptr::null};
 
-#[derive(FromForm)]
-struct Upload<'f> {
-    upload: Vec<TempFile<'f>>,
+use clap::{builder::OsStr, Arg, Command, Error};
+
+
+struct Files {
+    name: OsString,
+    context: String
 }
 
-impl Upload<'_> {
-    async fn filestats(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let mut stats = String::new();
-        let mut sum = [0,0];
-        for (index, file) in self.upload.iter().enumerate() {
-            let mut buff = String::new();
-            
-            file.open()
-                .await
-                .unwrap()
-                .read_to_string(&mut buff)
-                .await?;
-            
-            let file_stats = format!(
-                "\nФайл №{}:\nИмя файла: {}\nСтрок: {}\nСлов: {}\nСимволов: {}\n",
-                index + 1,
-                file.name().unwrap(),
-                buff.lines().count(),
-                buff.split_whitespace().count(),
-                buff.chars().count()
-            );
-            sum[0] += buff.split_whitespace().count();
-            sum[1] += buff.chars().count();
+impl Files {
+    fn new(name: OsString, context: String) -> Self {
+        Self { name: name, context: context }
+    }
 
-            stats.push_str(&file_stats);
-            
-        }
-        let filesumm = format!("\nИтог: {} слов, {} символов", sum[0], sum[1]);
-        stats.push_str(&filesumm);
-        Ok(stats)
+    async fn file_analyse(&self) -> String {
+        let file_stats = format!(
+            "Имя файла: {}\nСтрок: {}\nСлов: {}\nСимволов: {}\n",
+            self.name.to_str().unwrap(),
+            self.context.lines().count(),
+            self.context.split_whitespace().count(),
+            self.context.chars().count()
+        );
+        file_stats
     }
 }
 
-#[post("/upload", data = "<file>")]
-async fn upload(mut file: Form<Upload<'_>>) -> (Status, String) {
-    let upload_dir = Path::new("./downloaded");
-    for file in file.upload.iter() {
-        if !file.content_type().unwrap().is_text() {
-            return (Status::NotAcceptable, "Неверный тип файла".to_owned());
-        }
+async fn file_handler(dists: Vec<String>) -> Vec<Files> {
+    let mut vec: Vec<Files> = vec![];
+    for dist in dists.iter() {
+        let mut buf: String = "".to_string();
+        let path = std::path::Path::new(dist);
+        let _ = File::open(path).expect("Неверный путь").read_to_string(&mut buf);
+        vec.push(Files{name: path.file_name().unwrap().to_owned(), context: buf});
     }
+    vec
+    /* `Vec<File>` value */
+}
 
-    let stats = file.filestats().await.unwrap();
+#[tokio::main]
+async fn main() {
+
+    // парсим аргументы -> ищем файлы -> тащим строки и пихаем в вектор объекта
+    // как найти файл? проверка на абсолют пас -> в текущей папке -> при отказе скан 
+    // String в куче -> можно забить и хранить в объекте
+    // 
+    let matches = Command::new("FileProcessor")
+        .arg(
+            Arg::new("files")
+                .short('f')
+                .long("files")
+                .value_name("FILE")
+                .num_args(1..)
+                .required(true)
+        )
+        .get_matches();
+
+    let files = file_handler(matches.get_many::<String>("files")
+        .expect("At least one file required")
+        .cloned()
+        .collect()).await;
     
-    for file in file.upload.iter_mut() {
-        let file_id = Uuid::new_v4()
-            .hyphenated()
-            .encode_lower(&mut Uuid::encode_buffer())
-            .to_owned();
-        let file_dist = upload_dir.join(&file_id);
-        
-        let _ = file.move_copy_to(&file_dist).await;
-        let _ = std::fs::remove_file(file.path().unwrap());
+    for (i, file) in files.iter().enumerate() {
+        println!("{}", format!("Файл №{}", i+1));
+        println!("{}", file.file_analyse().await);
     }
-    
-    (Status::Ok, stats)
-}
-
-#[launch]
-fn rocket() -> _ {
-    rocket::build().mount("/", routes![upload])
 }

@@ -25,9 +25,9 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
         println!("{:?}", args);
 
-    for arg in args.{
+    // for arg in args{
 
-    }
+    // }
 
     // match args{
         

@@ -77,6 +77,7 @@ async fn main() {
         println!("Имя файла: {}\nСтрок: {}\nСлов: {}\nСимволов: {}\n", stats.0, stats.1, stats.2, stats.3);
         sum[0] += stats.2;
         sum[1] += stats.3;
-        println!("Итог: {} слов, {} символов", sum[0], sum[1])
+        
     }
+    println!("Итог: {} слов, {} символов", sum[0], sum[1])
 }

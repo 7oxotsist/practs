@@ -43,7 +43,7 @@ async fn file_handler(dists: Vec<String>) -> Vec<Files> {
 
 #[tokio::main]
 async fn main() {
-    let matches = Command::new("FileProcessor")
+    let matches = Command::new("FileAnalyser")
         .arg(
             Arg::new("files")
                 .short('f')

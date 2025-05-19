@@ -1,26 +1,42 @@
+use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
-use tokio::io::{AsyncWriteExt, AsyncReadExt};
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use std::io::{self, BufRead, Write};
 
 #[tokio::main]
-async fn main() {
-    // Подключаемся к серверу
-    let mut stream = TcpStream::connect("127.0.0.1:8090").await.unwrap();
-    println!("Connected to server!");
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Подключение к серверу
+    let (ws_stream, _) = connect_async("ws://127.0.0.1:8090").await?;
+    let (mut write, mut read) = ws_stream.split();
 
+    println!("Connected to server. Type '/ready' to start or 5-letter words to guess");
+    print!("> ");
+    // Основной цикл обработки ввода
     loop {
-        
-    }
-    // // Отправляем сообщение серверу
-    // let msg = b"Hello from client!\n";
-    // stream.write_all(msg).await;
-    // println!("Message sent!");
+        io::stdout().flush()?; // Синхронный ввод
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+        let input = input.trim().to_uppercase();
 
-    // // Читаем ответ (если сервер что-то отправляет)
-    // let mut buf = vec![0; 1024];
-    // let n = stream.read(&mut buf).await.unwrap();
-    // if n > 0 {
-    //     println!("Received from server: {}", String::from_utf8_lossy(&buf[..n]));
-    // } else {
-    //     println!("No response from server.");
-    // }
+        if input.is_empty() {
+            continue;
+        }
+
+        // Отправка сообщения
+        write.send(Message::Text(input.clone().into())).await?;
+
+        // Получение ответа
+        if let Some(msg) = read.next().await {
+            match msg? {
+                Message::Text(text) => println!("Server: {}", text),
+                Message::Close(_) => {
+                    println!("Connection closed");
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    Ok(())
 }
